@@ -1,0 +1,17 @@
+{
+    "name": "imos/ninespot",
+    "description": "Launch an EC2 instance on demand.",
+    "type": "project",
+    "require": {
+        "aws/aws-sdk-php": "^3.36"
+    },
+    "bin": [
+        "ninespot.php"
+    ],
+    "authors": [
+        {
+            "name": "imos",
+            "email": "github@imoz.jp"
+        }
+    ]
+}

@@ -2,9 +2,6 @@
     "name": "imos/ninespot",
     "description": "Launch an EC2 instance on demand.",
     "type": "project",
-    "require": {
-        "aws/aws-sdk-php": "^3.36"
-    },
     "bin": [
         "ninespot.php"
     ],
@@ -13,5 +10,9 @@
             "name": "imos",
             "email": "github@imoz.jp"
         }
-    ]
+    ],
+    "require": {
+        "league/climate": "^3.2",
+        "pear/console_commandline": "^1.2"
+    }
 }

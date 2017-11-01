@@ -4,7 +4,7 @@ build: vendor/autoload.php
 .PHONY: build
 
 install: build
-	sudo cp ninespot.phar /usr/local/ninespot
+	sudo cp ninespot.phar /usr/local/bin/ninespot
 .PHONY: install
 
 vendor/autoload.php: composer.json

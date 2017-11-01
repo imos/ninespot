@@ -183,6 +183,7 @@ class Log {
           array_map('floatval', explode(' ', microtime()));
       $message = date('md H:i:s', $seconds) . '.' .
                  sprintf("%06d", floor($micros * 1e6)) . ' ' .
+                 getmypid() . ' ' .
                  basename($backtrace[1]['file']) .
                  ':' . $backtrace[1]['line'] . '] ' . $message;
       $message = ['I', 'I', 'W', 'E', 'F'][$log_level] . $message;
@@ -395,7 +396,7 @@ class Gcloud {
     }
     Log::Info('Feeding a machine: ' . $instance);
     exec('gcloud compute --quiet ssh ' . $instance .
-             ' --ssh-flag=-q --zone=' . GetZone($instance) .
+             ' --ssh-flag=-q --zone=' . self::GetZone($instance) .
              ' -- sudo touch /var/run/ninespot.lock >/dev/null 2>/dev/null',
          $output, $return);
     if ($return == 0) {
@@ -673,11 +674,11 @@ class NinespotRun {
   }
 
   public function Execute() {
-    if (!Gcloud::Feed()) {
+    if (!Gcloud::Feed($this->instance)) {
       $success = FALSE;
       for ($i = 0; $i < 2; $i++) {
         $this->Start();
-        if (Gcloud::Feed()) {
+        if (Gcloud::Feed($this->instance)) {
           $success = TRUE;
           break;
         }
@@ -696,7 +697,7 @@ class NinespotRun {
       fclose(STDIN);
       Log::Debug('Child process started.');
       while (posix_kill($ppid, 0)) {
-        Gcloud::Feed();
+        Gcloud::Feed($this->instance);
         sleep(10);
       }
       exit(0);

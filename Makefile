@@ -3,6 +3,10 @@ build: vendor/autoload.php
 	chmod +x ninespot.phar
 .PHONY: build
 
+install: build
+	sudo cp ninespot.phar /usr/local/ninespot
+.PHONY: install
+
 vendor/autoload.php: composer.json
 	php composer.phar install
 

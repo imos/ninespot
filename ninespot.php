@@ -383,7 +383,32 @@ class Gcloud {
   }
 
   public static function SetZone($instance, $zone = NULL) {
+    self::ClearFeed($instance);
     Cache::Set('instances/' . $instance . ':zone', $zone, 60 * 60);
+  }
+
+  public static function Feed($instance) {
+    if (Flag::Get('dry_run')) return TRUE;
+    $cache_key = 'instances/' . $instance . ':feed';
+    if (Cache::Get($cache_key, 120) === TRUE) {
+      return TRUE;
+    }
+    Log::Info('Feeding a machine: ' . $instance);
+    exec('gcloud compute --quiet ssh ' . $instance .
+             ' --ssh-flag=-q --zone=' . GetZone($instance) .
+             ' -- sudo touch /var/run/ninespot.lock >/dev/null 2>/dev/null',
+         $output, $return);
+    if ($return == 0) {
+      Cache::Set($cache_key, TRUE, 300);
+    } else {
+      Log::Info('Failed to feed a machine: ' . $instance);
+    }
+    return $return == 0;
+  }
+
+  public static function ClearFeed($instance) {
+    if (Flag::Get('dry_run')) return;
+    Cache::Set('instances/' . $instance . ':feed', NULL);
   }
 
 // private:
@@ -597,10 +622,12 @@ class NinespotStop {
 
   public function Execute() {
     try {
+      Gcloud::ClearFeed($this->instance);
       Gcloud::Execute(
           ['compute', 'instances', 'delete', '--quiet', $this->instance,
            '--zone=' . $this->zone, '--keep-disks=all'],
           Flag::Get('dry_run'));
+      Gcloud::ClearFeed($this->instance);
     } catch (\Exception $e) {
       Log::Fatal('Failed to delete a machine: ' . $this->instance);
     }
@@ -620,21 +647,16 @@ class NinespotSleep {
   }
 
   public function Execute() {
-    $this->ClearFeed();
     try {
+      Gcloud::ClearFeed($this->instance);
       Gcloud::Execute(
           ['compute', 'instances', 'stop', '--quiet', $this->instance,
            '--zone=' . $this->zone],
           Flag::Get('dry_run'));
+      Gcloud::ClearFeed($this->instance);
     } catch (\Exception $e) {
       Log::Fatal('Failed to sleep a machine: ' . $this->instance);
     }
-    $this->ClearFeed();
-  }
-
-  public function ClearFeed() {
-    if (Flag::Get('dry_run')) return;
-    Cache::Set('instances/' . $this->instance . ':feed', NULL);
   }
 
   public $instance = NULL;
@@ -651,11 +673,11 @@ class NinespotRun {
   }
 
   public function Execute() {
-    if (!$this->Feed()) {
+    if (!Gcloud::Feed()) {
       $success = FALSE;
       for ($i = 0; $i < 2; $i++) {
         $this->Start();
-        if ($this->Feed()) {
+        if (Gcloud::Feed()) {
           $success = TRUE;
           break;
         }
@@ -674,7 +696,7 @@ class NinespotRun {
       fclose(STDIN);
       Log::Debug('Child process started.');
       while (posix_kill($ppid, 0)) {
-        $this->Feed();
+        Gcloud::Feed();
         sleep(10);
       }
       exit(0);
@@ -703,24 +725,6 @@ class NinespotRun {
     exec('gcloud compute --quiet instances start ' . $this->instance .
              ' --zone=' . $this->zone . ' 2>/dev/null',
          $output, $return);
-    return $return == 0;
-  }
-
-  public function Feed() {
-    $cache_key = 'instances/' . $this->instance . ':feed';
-    if (Cache::Get($cache_key, 120) === TRUE) {
-      return TRUE;
-    }
-    Log::Info('Feeding a machine: ' . $this->instance);
-    exec('gcloud compute --quiet ssh ' . $this->instance .
-             ' --ssh-flag=-q --zone=' . $this->zone .
-             ' -- sudo touch /var/run/ninespot.lock 2>/dev/null',
-         $output, $return);
-    if ($return == 0) {
-      Cache::Set($cache_key, TRUE, 300);
-    } else {
-      Log::Info('Failed to feed a machine: ' . $this->instance);
-    }
     return $return == 0;
   }
 

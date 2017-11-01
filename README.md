@@ -1,2 +1,2 @@
 # ninespot
-Launch an EC2 instance on demand.
+Launch a cloud machine on demand.

@@ -412,6 +412,13 @@ class Gcloud {
     Cache::Set('instances/' . $instance . ':feed', NULL);
   }
 
+  public static function MachineExists($instance) {
+    if (Flag::Get('dry_run')) return TRUE;
+    $instances = self::Execute(
+        ['compute', 'instances', 'list', '--filter=name~' . $instance]);
+    return count($instances) > 0;
+  }
+
 // private:
   private static function ListImagesInternal() {
     return self::GetCacheOrExecute(
@@ -675,6 +682,9 @@ class NinespotRun {
 
   public function Execute() {
     if (!Gcloud::Feed($this->instance)) {
+      if (!Gcloud::MachineExists($this->instance)) {
+        Log::Fatal('No such machine exists: ' . $this->instance);
+      }
       $success = FALSE;
       for ($i = 0; $i < 2; $i++) {
         $this->Start();

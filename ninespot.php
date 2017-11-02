@@ -124,6 +124,12 @@ class Flag {
          'action' => 'StoreString',
          'default' => '0B',
          'description' => 'Memory size.']);
+    $start->addOption('preemptible',
+        ['short_name' => '-p',
+         'long_name' => '--preemptible',
+         'action' => 'StoreTrue',
+         'default' => FALSE,
+         'description' => 'Request a preemptible machine.']);
     $stop = $parser->addCommand(
         'stop',
         ['description' => 'Detach a machine.']);
@@ -560,6 +566,10 @@ class NinespotStart {
     Log::Debug('Start mode.');
     $this->instance = Flag::Get('instance');
     Log::Info('Instance name is ' . $this->instance . '.');
+    $this->is_preemptible = Flag::Get('is_preemptible');
+    Log::Info('Instance is ' .
+              ($this->is_preemptible ? 'preemptible' : 'not preemptible') .
+              '.');
     $this->cpu = Flag::Get('cpu');
     Log::Info('Minimum number of CPUs is ' . $this->cpu . '.');
     $this->memory = $this->GetMemorySize();
@@ -581,15 +591,16 @@ echo 'SHELL=/bin/sh' > /etc/cron.d/ninespot
 echo 'PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin' >> /etc/cron.d/ninespot
 echo '* * * * * root if find /var/run/crond.pid -mmin +10 | grep /var/run/crond.pid && find /var/run/ninespot.lock -mmin +10 | grep /var/run/ninespot.lock; then shutdown now; fi' >> /etc/cron.d/ninespot
 EOM;
-      Gcloud::Execute(
-          ['compute', 'instances', 'create', $this->instance,
-           '--zone=' . $this->zone,
-           '--machine-type=' . $this->machine_type['name'],
-           '--preemptible',
-           '--metadata=startup-script=' . $startup_script,
-           '--disk=name=' . $this->instance .
-           ',device-name=' . $this->instance . ',mode=rw,boot=yes'],
-          Flag::Get('dry_run'));
+      $args = ['compute', 'instances', 'create', $this->instance];
+      $args[] = '--zone=' . $this->zone;
+      $args[] = '--machine-type=' . $this->machine_type['name'];
+      if ($this->is_preemptible) {
+        $args[] = '--preemptible';
+      }
+      $args[] = '--metadata=startup-script=' . $startup_script;
+      $args[] = '--disk=name=' . $this->instance .
+                ',device-name=' . $this->instance . ',mode=rw,boot=yes';
+      Gcloud::Execute($args, Flag::Get('dry_run'));
     } catch (\Exception $e) {
       Log::Fatal('Failed to create a machine: ' . $this->instance);
     }

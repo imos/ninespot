@@ -1,5 +1,5 @@
 build: vendor/autoload.php
-	php phar-composer.phar build .
+	php -d phar.readonly=Off phar-composer.phar build .
 	chmod +x ninespot.phar
 .PHONY: build
 

@@ -124,6 +124,12 @@ class Flag {
          'action' => 'StoreString',
          'default' => '0B',
          'description' => 'Memory size.']);
+    $start->addOption('gpu',
+        ['short_name' => '-g',
+         'long_name' => '--gpu',
+         'action' => 'StoreInt',
+         'default' => 0,
+         'description' => 'Number of GPUs.']);
     $start->addOption('preemptible',
         ['short_name' => '-p',
          'long_name' => '--preemptible',
@@ -574,6 +580,8 @@ class NinespotStart {
     Log::Info('Minimum number of CPUs is ' . $this->cpu . '.');
     $this->memory = $this->GetMemorySize();
     Log::Info('Minimum size of memory is ' . $this->memory . ' bytes.');
+    $this->gpu = Flag::Get('gpu');
+    Log::Info('Number of GPUs is ' . $this->gpu . '.');
     $this->zone = Gcloud::GetZone($this->instance);
     Log::Info('Instance\'s zone is ' . $this->zone . '.');
     $this->machine_type = $this->GetMachineType($this->zone);
@@ -600,6 +608,10 @@ EOM;
       $args[] = '--metadata=startup-script=' . $startup_script;
       $args[] = '--disk=name=' . $this->instance .
                 ',device-name=' . $this->instance . ',mode=rw,boot=yes';
+      if ($this->gpu > 0) {
+        $args[] = '--accelerator=type=nvidia-tesla-k80,count=' . $this->gpu;
+        $args[] = '--maintenance-policy=TERMINATE';
+      }
       Gcloud::Execute($args, Flag::Get('dry_run'));
     } catch (\Exception $e) {
       Log::Fatal('Failed to create a machine: ' . $this->instance);
@@ -627,6 +639,7 @@ EOM;
   public $instance = NULL;
   public $cpu = 0;
   public $memory = 0;
+  public $gpu = 0;
   public $zone = NULL;
 }
 

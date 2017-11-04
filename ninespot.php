@@ -585,6 +585,10 @@ class NinespotStart {
     $this->zone = Gcloud::GetZone($this->instance);
     Log::Info('Instance\'s zone is ' . $this->zone . '.');
     $this->machine_type = $this->GetMachineType($this->zone);
+    if (is_null($this->machine_type)) {
+      Log::Fatal(
+          'No machine satisfying the requirements is available in the zone.');
+    }
     Log::Info('Selected machine type is ' . $this->machine_type['name'] .
               ' (# of CPUs: ' . $this->machine_type['cpu'] .
               ', Memory: ' . round($this->machine_type['memory']

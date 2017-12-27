@@ -150,6 +150,14 @@ class Flag {
         ['multiple' => TRUE,
          'optional' => TRUE,
          'description' => 'Files.']);
+    $rsync = $parser->addCommand(
+        'rsync',
+        ['description' => 'Copy files.']);
+    $rsync->addArgument(
+        'args',
+        ['multiple' => TRUE,
+         'optional' => TRUE,
+         'description' => 'Files.']);
     try {
       $result = $parser->parse();
       $this->args = $result->args['args'];
@@ -386,6 +394,27 @@ class Gcloud {
       return 0;
     });
     return $result;
+  }
+
+  public static function GetInstanceInfo($instance, $expiration = 5 * 60) {
+    $instance_info =
+        Cache::Get('instances/' . $instance . ':instance', $expiration);
+    if (is_null($instance_info)) {
+      $instances = self::Execute([
+          'compute', 'instances', 'list', '--filter=name~' . $instance]);
+      $instance_info = NULL;
+      if (count($instances) > 1) {
+        Log::Fatal('Instance "' . $instance . '" is duplicated.');
+      } else if (count($instances) == 1) {
+        $instance_info = $instances[0];
+      }
+      self::SetInstanceInfo($instance, $instance_info);
+    }
+    return $instance_info;
+  }
+
+  public static function SetInstanceInfo($instance, $instance_info = NULL) {
+    Cache::Set('instances/' . $instance . ':instance', $instance_info, 5 * 60);
   }
 
   public static function GetZone($instance, $expiration = 60 * 60) {
@@ -716,6 +745,40 @@ class NinespotCopy {
   public $zone = NULL;
 }
 
+class NinespotRsync {
+  public function __construct() {
+    Log::Debug('Rsync mode.');
+    $arguments = [];
+    foreach (Flag::GetArguments() as $argument) {
+      if (preg_match('%^((?:[^@]*@)?)([^:]*)(:.*$)%', $argument, $match)) {
+        $instance = $argument[2];
+        $instance_info = Gcloud::GetInstanceInfo($instance);
+        $ip_address =
+            $instance_info['networkInterfaces'][0]['accessConfigs'][0]['natIP']
+                ?: NULL;
+        if ($ip_address == NULL) {
+          Log::Fatal("IP address is not unknown: $instance");
+        }
+        $arguments[] = "{$match[1]}{$ip_address}{$match[3]}";
+      } else {
+        $arguments[] = $argument;
+      }
+    }
+    $this->arguments = $arguments;
+    Log::Info('Arguments are ' . implode(' ', $this->arguments) . '.');
+  }
+
+  public function Execute() {
+    $arguments = array_map('escapeshellarg',
+        array_merge(['rsync', '-az', '--delete',
+                     '-e', 'ssh -i ~/.ssh/google_compute_engine'],
+                    $this->arguments));
+    exec(implode(' ', $arguments));
+  }
+
+  public $arguments = NULL;
+}
+
 class NinespotSleep {
   public function __construct() {
     Log::Debug('Sleep mode.');
@@ -823,6 +886,7 @@ class Ninespot {
       case 'stop': return (new NinespotStop())->Execute();
       case 'sleep': return (new NinespotSleep())->Execute();
       case 'copy-files': return (new NinespotCopy())->Execute();
+      case 'rsync': return (new NinespotRsync())->Execute();
       default: return (new NinespotRun())->Execute();
     }
   }

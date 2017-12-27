@@ -142,6 +142,14 @@ class Flag {
     $sleep = $parser->addCommand(
         'sleep',
         ['description' => 'Sleep a machine.']);
+    $copy_files = $parser->addCommand(
+        'copy-files',
+        ['description' => 'Copy files.']);
+    $copy_files->addArgument(
+        'args',
+        ['multiple' => TRUE,
+         'optional' => TRUE,
+         'description' => 'Files.']);
     try {
       $result = $parser->parse();
       $this->args = $result->args['args'];
@@ -673,6 +681,41 @@ class NinespotStop {
   public $zone = NULL;
 }
 
+class NinespotCopy {
+  public function __construct() {
+    Log::Debug('Copy mode.');
+    foreach (Flag::GetArguments() as $argument) {
+      if (preg_match('%^(?:[^@]*@)?([^:]*):%', $argument, $match)) {
+        $this->instance = $match[1];
+        break;
+      }
+    }
+    if ($this->instance == NULL) {
+      Log::Fatal('Instance is required.');
+    }
+    Log::Info('Instance name is ' . $this->instance . '.');
+    $this->zone = Gcloud::GetZone($this->instance);
+    Log::Info('Instance\'s zone is ' . $this->zone . '.');
+  }
+
+  public function Execute() {
+    try {
+      if (!Gcloud::Feed($this->instance)) {
+        Log::Fatal('No such instance: ' . $this->instance);
+      }
+      Gcloud::Execute(
+          array_merge(['compute', 'scp', '--recurse', '--zone=' . $this->zone],
+                      Flag::GetArguments()),
+          Flag::Get('dry_run'));
+    } catch (\Exception $e) {
+      Log::Fatal('Failed to copy files: ' . $this->instance);
+    }
+  }
+
+  public $instance = NULL;
+  public $zone = NULL;
+}
+
 class NinespotSleep {
   public function __construct() {
     Log::Debug('Sleep mode.');
@@ -727,7 +770,7 @@ class NinespotRun {
       }
     }
     $ppid = getmypid();
-    $pid = pcntl_fork();
+    $pid = \pcntl_fork();
     if ($pid < 0) {
       Log::Fatal('Failed to fork.');
     }
@@ -779,6 +822,7 @@ class Ninespot {
       case 'start': return (new NinespotStart())->Execute();
       case 'stop': return (new NinespotStop())->Execute();
       case 'sleep': return (new NinespotSleep())->Execute();
+      case 'copy-files': return (new NinespotCopy())->Execute();
       default: return (new NinespotRun())->Execute();
     }
   }

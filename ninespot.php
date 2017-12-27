@@ -773,7 +773,7 @@ class NinespotRsync {
         array_merge(['rsync', '-az', '--delete',
                      '-e', 'ssh -i ~/.ssh/google_compute_engine'],
                     $this->arguments));
-    exec(implode(' ', $arguments));
+    exec(implode(' ', $arguments), $output, $return);
   }
 
   public $arguments = NULL;
